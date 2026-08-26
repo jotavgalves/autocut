@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld("autocut", {
   setSettings: (settings) => ipcRenderer.invoke("settings:set", settings),
   saveProject: (project) => ipcRenderer.invoke("project:save", project),
   openProject: () => ipcRenderer.invoke("project:open"),
-  exportJob: (job) => ipcRenderer.invoke("export:job", job)
+  exportJob: (job) => ipcRenderer.invoke("export:job", job),
+  generateSewingMap: (job) => ipcRenderer.invoke("map:generate", job)
 });
