@@ -88,6 +88,7 @@ async function inspectImage(filePath) {
     const image = sharp(filePath, { limitInputPixels: false, failOn: "error" });
     const metadata = await image.metadata();
     if (!metadata.width || !metadata.height) throw new Error("Dimensões da imagem não puderam ser determinadas.");
+
     const dpi = metadata.density && metadata.density > 0 ? metadata.density : null;
     const previewBuffer = await sharp(filePath, { limitInputPixels: false })
       .resize({ width: 1800, height: 1200, fit: "inside", withoutEnlargement: true })
@@ -134,7 +135,7 @@ async function readSettings() {
 async function writeSettings(settings) {
   const filePath = path.join(app.getPath("userData"), SETTINGS_FILE);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(settings, null, 2), "utf8");
+  await fs.writeFile(filePath, JSON.stringify(settings || {}, null, 2), "utf8");
   return { ok: true, filePath };
 }
 
@@ -145,7 +146,7 @@ async function saveProject(project) {
     filters: [{ name: "Projeto AUTOCUT", extensions: ["json"] }]
   });
   if (result.canceled || !result.filePath) return null;
-  await fs.writeFile(result.filePath, JSON.stringify({ version: 2, ...project }, null, 2), "utf8");
+  await fs.writeFile(result.filePath, JSON.stringify({ version: 3, ...project }, null, 2), "utf8");
   return { ok: true, filePath: result.filePath };
 }
 
@@ -277,7 +278,14 @@ async function exportJob(job) {
     };
     validation.approved = Object.values(validation).every(Boolean);
 
-    results.push({ index: slice.index, filePath: outputPath, widthPx: savedMeta.width, heightPx: savedMeta.height, dpi: savedDpi, validation });
+    results.push({
+      index: slice.index,
+      filePath: outputPath,
+      widthPx: savedMeta.width,
+      heightPx: savedMeta.height,
+      dpi: savedDpi,
+      validation
+    });
   }
 
   const reconstructionOk = fullPlanReconstructionOk(job);
@@ -348,9 +356,20 @@ async function generateSewingMap(job) {
   const outputPath = await resolveOutputPath(job.outputDirectory, baseName, "jpg", job.output?.conflict || "version");
   if (!outputPath) return { ok: false, skipped: true, filePath: null };
 
-  await sharp(Buffer.from(svg)).flatten({ background: "#ffffff" }).jpeg({ quality: 94, chromaSubsampling: "4:4:4" }).withMetadata({ density: 150 }).toFile(outputPath);
+  await sharp(Buffer.from(svg))
+    .flatten({ background: "#ffffff" })
+    .jpeg({ quality: 94, chromaSubsampling: "4:4:4" })
+    .withMetadata({ density: 150 })
+    .toFile(outputPath);
+
   const saved = await sharp(outputPath).metadata();
-  return { ok: Boolean(saved.width === pageWidth && saved.height === pageHeight), filePath: outputPath, widthPx: saved.width, heightPx: saved.height, slices: job.slices.length };
+  return {
+    ok: Boolean(saved.width === pageWidth && saved.height === pageHeight),
+    filePath: outputPath,
+    widthPx: saved.width,
+    heightPx: saved.height,
+    slices: job.slices.length
+  };
 }
 
 function marginPixels(margin, dpi) {
@@ -374,6 +393,7 @@ function renderTechnicalOverlay({ width, height, margins, slice, orientation, dp
   const requested = Math.max(8, Math.round(((Number(identification?.sizeCm) || 2) / 2.54) * dpi));
   const pad = Math.max(4, Math.round(((Number(identification?.edgeDistanceCm) || 0.18) / 2.54) * dpi));
   const text = [];
+
   if (identification?.enabled) {
     const before = slice.seam?.labels?.before;
     const after = slice.seam?.labels?.after;
@@ -385,6 +405,7 @@ function renderTechnicalOverlay({ width, height, margins, slice, orientation, dp
       if (after && margins.rightPx > 0) addVerticalPair(text, after, width - margins.rightPx / 2, height, margins, margins.rightPx, requested, fill, family, pad, 90);
     }
   }
+
   const artName = escapeXml(String(baseName || "").toUpperCase());
   if (artName && nameSides) {
     const nameSize = Math.max(8, Math.round(requested * 0.55));
@@ -393,6 +414,7 @@ function renderTechnicalOverlay({ width, height, margins, slice, orientation, dp
     if (nameSides.left && margins.leftPx > 0) text.push(svgRotatedText(margins.leftPx / 2, height / 2, artName, Math.min(nameSize, margins.leftPx * 0.55), fill, family, -90));
     if (nameSides.right && margins.rightPx > 0) text.push(svgRotatedText(width - margins.rightPx / 2, height / 2, artName, Math.min(nameSize, margins.rightPx * 0.55), fill, family, 90));
   }
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${text.join("")}</svg>`;
 }
 
@@ -402,23 +424,41 @@ function addHorizontalPair(out, labels, y, width, margins, requested, fill, fami
   out.push(svgText(margins.leftPx + pad, y, escapeXml(labels[0]), size, fill, family, "start"));
   out.push(svgText(width - margins.rightPx - pad, y, escapeXml(labels[1]), size, fill, family, "end"));
 }
+
 function addVerticalPair(out, labels, x, height, margins, sideWidth, requested, fill, family, pad, rotation) {
   const size = Math.min(requested, Math.max(8, (sideWidth - pad * 2) * 0.75));
   out.push(svgRotatedText(x, margins.topPx + pad + size, escapeXml(labels[0]), size, fill, family, rotation));
   out.push(svgRotatedText(x, height - margins.bottomPx - pad - size, escapeXml(labels[1]), size, fill, family, rotation));
 }
-function svgText(x, y, value, size, fill, family, anchor) { return `<text x="${Math.round(x)}" y="${Math.round(y)}" fill="${fill}" font-family="${family}" font-size="${Math.max(8, Math.round(size))}" font-weight="700" text-anchor="${anchor}" dominant-baseline="middle">${value}</text>`; }
-function svgRotatedText(x, y, value, size, fill, family, rotation) { return `<text transform="translate(${Math.round(x)} ${Math.round(y)}) rotate(${rotation})" fill="${fill}" font-family="${family}" font-size="${Math.max(8, Math.round(size))}" font-weight="700" text-anchor="middle" dominant-baseline="middle">${value}</text>`; }
-function escapeXml(value) { return String(value).replace(/[<>&"']/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[char])); }
+
+function svgText(x, y, value, size, fill, family, anchor) {
+  return `<text x="${Math.round(x)}" y="${Math.round(y)}" fill="${fill}" font-family="${family}" font-size="${Math.max(8, Math.round(size))}" font-weight="700" text-anchor="${anchor}" dominant-baseline="middle">${value}</text>`;
+}
+
+function svgRotatedText(x, y, value, size, fill, family, rotation) {
+  return `<text transform="translate(${Math.round(x)} ${Math.round(y)}) rotate(${rotation})" fill="${fill}" font-family="${family}" font-size="${Math.max(8, Math.round(size))}" font-weight="700" text-anchor="middle" dominant-baseline="middle">${value}</text>`;
+}
+
+function escapeXml(value) {
+  return String(value).replace(/[<>&"']/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[char]));
+}
 
 function applyOutputFormat(pipeline, output) {
   switch (String(output.format || "PNG").toUpperCase()) {
-    case "JPEG": return pipeline.jpeg({ quality: Math.max(1, Math.min(100, Number(output.quality) || 95)), chromaSubsampling: "4:4:4" });
-    case "TIFF": return pipeline.tiff({ compression: output.tiffCompression || "lzw" });
-    case "PNG": return pipeline.png({ compressionLevel: 6 });
-    default: throw new Error(`Formato ainda não suportado neste build: ${output.format}`);
+    case "JPEG":
+      return pipeline.jpeg({
+        quality: Math.max(1, Math.min(100, Number(output.quality) || 95)),
+        chromaSubsampling: "4:4:4"
+      });
+    case "TIFF":
+      return pipeline.tiff({ compression: output.tiffCompression || "lzw" });
+    case "PNG":
+      return pipeline.png({ compressionLevel: 6 });
+    default:
+      throw new Error(`Formato ainda não suportado neste build: ${output.format}`);
   }
 }
+
 function extensionFor(format) {
   const key = String(format || "PNG").toUpperCase();
   if (key === "JPEG") return "jpg";
@@ -426,11 +466,28 @@ function extensionFor(format) {
   if (key === "PNG") return "png";
   throw new Error(`Formato ainda não suportado neste build: ${format}`);
 }
+
 async function resolveOutputPath(folder, baseName, extension, policy) {
   await fs.mkdir(folder, { recursive: true });
   const initial = path.join(folder, `${baseName}.${extension}`);
   if (!existsSync(initial) || policy === "overwrite") return initial;
   if (policy === "skip") return null;
+
+  if (policy === "ask") {
+    const choice = await dialog.showMessageBox({
+      type: "question",
+      title: "Arquivo já existe",
+      message: path.basename(initial),
+      detail: "Escolha como o AUTOCUT deve tratar este conflito.",
+      buttons: ["Substituir", "Criar versão", "Ignorar"],
+      defaultId: 1,
+      cancelId: 2,
+      noLink: true
+    });
+    if (choice.response === 0) return initial;
+    if (choice.response === 2) return null;
+  }
+
   let version = 2;
   while (true) {
     const candidate = path.join(folder, `${baseName}_V${version}.${extension}`);
@@ -438,8 +495,14 @@ async function resolveOutputPath(folder, baseName, extension, policy) {
     version += 1;
   }
 }
+
 function hexToRgba(hex, alpha) {
   const value = String(hex || "#ffffff").replace("#", "");
   const safe = /^[0-9a-f]{6}$/i.test(value) ? value : "ffffff";
-  return { r: parseInt(safe.slice(0, 2), 16), g: parseInt(safe.slice(2, 4), 16), b: parseInt(safe.slice(4, 6), 16), alpha };
+  return {
+    r: parseInt(safe.slice(0, 2), 16),
+    g: parseInt(safe.slice(2, 4), 16),
+    b: parseInt(safe.slice(4, 6), 16),
+    alpha
+  };
 }
