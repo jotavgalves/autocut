@@ -28,3 +28,4 @@ rep('function ext(f) { return f === "JPEG" ? "JPG" : f === "TIFF" ? "TIF" : f; }
 rep('`${esc(x.fileName)}.${ext(S.output.format)}`','`${esc(x.fileName)}.${ext(S.output.format)}`','noop names');
 fs.writeFileSync(file,s);
 console.log('Renderer migrated successfully');
+// final migration trigger
