@@ -1,6 +1,6 @@
 {
   "name": "autocut-electron",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "AUTOCUT - preparação dimensional segura de artes para sublimação",
   "type": "module",
   "main": "src/main/index.js",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "electron": "^44.0.0",
+    "pdf-lib": "^1.17.1",
     "sharp": "^0.35.4"
   },
   "devDependencies": {
