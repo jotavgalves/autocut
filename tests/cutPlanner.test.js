@@ -14,7 +14,7 @@ test("500 x 145 sem margem não corta", () => assert.equal(plan({ widthCm: 500, 
 test("145 x 500 sem margem não corta", () => assert.equal(plan({ widthCm: 145, heightCm: 500 }).status, "NO_CUT_NEEDED"));
 test("sem corte ainda produz uma faixa técnica 1/1 exportável", () => { const result = plan({ widthCm: 500, heightCm: 145 }); assert.equal(result.slices.length, 1); assert.equal(result.slices[0].index, 1); assert.equal(result.slices[0].total, 1); assert.equal(result.slices[0].startPx, 0); assert.equal(result.slices[0].endPx, result.document.heightPx); assert.equal(result.validation.reconstruction.ok, true); });
 test("146 x 500 exige corte", () => { const result = plan({ widthCm: 146, heightCm: 500 }); assert.equal(result.status, "CUT_REQUIRED"); assert.ok(result.slices.length > 1); });
-test("500 x 145 com margens de 1cm não é aprovado como sem corte", () => { const result = plan({ widthCm: 500, heightCm: 145, margin: oneCmAll }); assert.equal(result.status, "CUT_REQUIRED"); assert.ok(result.slices.every((slice) => slice.finalLimitedAxisCm <= 145)); });
+test("500 x 145 com margens de 1cm não é aprovado como sem corte", () => { const result = plan({ widthCm: 500, heightCm: 145, margin: oneCmAll }); assert.equal(result.status, "CUT_REQUIRED"); const limitPx = cmToPx(145, 300); assert.ok(result.slices.every((slice) => slice.finalLimitedAxisPx <= limitPx)); });
 
 test("por padrão o corte automático usa o máximo imprimível antes do restante", () => {
   const dpi = 300;
