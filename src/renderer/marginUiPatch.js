@@ -5,6 +5,12 @@
 const nativeFillText = CanvasRenderingContext2D.prototype.fillText;
 const nativeDrawImage = CanvasRenderingContext2D.prototype.drawImage;
 
+function callNativeFillText(ctx, text, x, y, maxWidth) {
+  return maxWidth == null
+    ? nativeFillText.call(ctx, text, x, y)
+    : nativeFillText.call(ctx, text, x, y, maxWidth);
+}
+
 CanvasRenderingContext2D.prototype.drawImage = function (...args) {
   if (this.canvas?.id === "preview" && args.length >= 5) {
     const [, x, y, w, h] = args;
@@ -15,7 +21,7 @@ CanvasRenderingContext2D.prototype.drawImage = function (...args) {
 
 CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
   if (this.canvas?.id !== "preview" || !/^[A-Z]+[12]$/.test(String(text))) {
-    return nativeFillText.call(this, text, x, y, maxWidth);
+    return callNativeFillText(this, text, x, y, maxWidth);
   }
 
   const box = this.canvas.__autocutArtBox;
@@ -25,10 +31,9 @@ CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
   const metaText = document.getElementById("fileMeta")?.textContent || "";
   const physical = metaText.match(/([\d.,]+)\s*[×x]\s*([\d.,]+)\s*cm/i);
 
-  if (!box || !physical) return nativeFillText.call(this, text, x, y, maxWidth);
-
+  if (!box || !physical) return callNativeFillText(this, text, x, y, maxWidth);
   const widthCm = Number(physical[1].replace(",", "."));
-  if (!(widthCm > 0)) return nativeFillText.call(this, text, x, y, maxWidth);
+  if (!(widthCm > 0)) return callNativeFillText(this, text, x, y, maxWidth);
 
   const pxPerCm = box.w / widthCm;
   const targetHeight = Math.max(4, identSizeCm * pxPerCm);
@@ -36,6 +41,15 @@ CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
   const oldFont = this.font;
   const oldAlign = this.textAlign;
   const oldBaseline = this.textBaseline;
+  const matrix = this.getTransform?.();
+  const identityTransform = !matrix || (
+    Math.abs(matrix.a - 1) < 1e-6 &&
+    Math.abs(matrix.b) < 1e-6 &&
+    Math.abs(matrix.c) < 1e-6 &&
+    Math.abs(matrix.d - 1) < 1e-6 &&
+    Math.abs(matrix.e) < 1e-6 &&
+    Math.abs(matrix.f) < 1e-6
+  );
 
   this.font = `800 ${targetHeight}px Segoe UI`;
   this.textBaseline = "middle";
@@ -44,17 +58,17 @@ CanvasRenderingContext2D.prototype.fillText = function (text, x, y, maxWidth) {
   const squeeze = Math.min(1, maxAdvance / naturalWidth);
 
   let drawX = x;
-  if (placement === "lateral" && Number.isFinite(x)) {
+  if (identityTransform && placement === "lateral" && Number.isFinite(x)) {
     if (oldAlign === "left") drawX = box.x - strip / 2;
     else if (oldAlign === "right") drawX = box.x + box.w + strip / 2;
   }
 
   this.save();
   this.translate(drawX, y);
-  if (placement === "top-bottom" && oldAlign !== "center") this.rotate(Math.PI / 2);
+  if (identityTransform && placement === "top-bottom" && oldAlign !== "center") this.rotate(Math.PI / 2);
   this.scale(squeeze, 1);
   this.textAlign = "center";
-  nativeFillText.call(this, text, 0, 0, maxWidth);
+  callNativeFillText(this, text, 0, 0, maxWidth);
   this.restore();
 
   this.font = oldFont;
@@ -122,8 +136,6 @@ async function installMarginPairUi() {
   select.addEventListener("change", () => apply(true));
   apply(true);
 
-  // Importação de configurações/projetos antigos pode recolocar os quatro
-  // flags internamente. Normalizamos novamente sem expor esse estado ao usuário.
   setInterval(() => {
     if (applying) return;
     const lateralActive = left.checked || right.checked;
