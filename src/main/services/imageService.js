@@ -105,9 +105,6 @@ export async function renderPdfPreview(bytesOrPath, pageNumber = 1, maxWidth = 1
     ? bytesOrPath
     : await fs.readFile(bytesOrPath);
 
-  // PDF.js 6 em Node usa @napi-rs/canvas internamente. O canvasFactory do
-  // próprio PDFDocumentProxy é o caminho suportado pelo exemplo oficial e
-  // evita misturar um canvas criado externamente com o backend do PDF.js.
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(bytes),
@@ -131,10 +128,12 @@ export async function renderPdfPreview(bytesOrPath, pageNumber = 1, maxWidth = 1
 
     await page.render({ canvasContext: context, viewport }).promise;
     const output = canvas.toBuffer("image/png");
-    page.cleanup();
-    canvasFactory.destroy(canvasAndContext);
+    page.cleanup?.();
+    canvasFactory.destroy?.(canvasAndContext);
     return output;
   } finally {
-    await pdf.destroy();
+    // No PDF.js 6 o lifecycle pertence ao PDFDocumentLoadingTask. Usamos
+    // optional chaining para manter compatibilidade com versões anteriores.
+    await loadingTask.destroy?.();
   }
 }
