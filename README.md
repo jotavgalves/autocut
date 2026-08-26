@@ -14,6 +14,8 @@ Esta versão substitui o protótipo inicial e corrige os problemas críticos de 
 - Cálculo do limite do tecido incluindo as margens antes da divisão.
 - Regra de rotação de 90° antes de decidir pelo corte.
 - Cortes automático, horizontal e vertical.
+- **Distribuição padrão pelo máximo útil imprimível**: cada faixa usa primeiro toda a medida útil possível e o restante fica para a última faixa.
+- **Distribuição equilibrada opcional**: somente quando o operador marca `Distribuir faixas igualmente` o AUTOCUT redistribui as faixas, inclusive fazendo corte ao meio quando aplicável.
 - Modos de edição livre e vinculado.
 - Linhas de corte arrastáveis sobre a arte.
 - Zoom e navegação na prévia.
@@ -30,8 +32,28 @@ Esta versão substitui o protótipo inicial e corrige os problemas críticos de 
 - Trabalho que não precisa de divisão representado por uma faixa técnica 1/1, permitindo preparar e validar uma cópia sem corte.
 - **Modo de reimpressão**: gera somente a faixa escolhida a partir do original usando exatamente as posições, margens, emendas e nomenclatura do plano atual.
 - **Mapa de costura em JPEG** com miniatura real da arte, linhas de corte, ordem das faixas, dimensões e pares de emenda.
-- Estado de reimpressão salvo no projeto AUTOCUT.
+- Estado de reimpressão e regra de distribuição salvos no projeto AUTOCUT.
 - Testes automatizados do núcleo geométrico.
+
+### Regra de distribuição automática
+
+A opção de corte equilibrado fica **desmarcada por padrão**.
+
+Exemplo sem margens no eixo limitado:
+
+```text
+Arte no eixo de corte: 280 cm
+Máximo útil imprimível: 145 cm
+Padrão: 145 + 135 cm
+```
+
+Somente com `Distribuir faixas igualmente` marcado:
+
+```text
+280 cm -> 140 + 140 cm
+```
+
+As margens continuam tendo prioridade sobre essa regra. Se o tecido tiver limite final de 145 cm e houver 1 cm de margem em cada lado do eixo limitado, o máximo útil da arte será aproximadamente 143 cm, pois o arquivo final jamais pode ultrapassar 145 cm.
 
 ### Ainda exige engine específico
 
@@ -75,4 +97,4 @@ npm run dev
 
 ## Testes cobertos
 
-Os testes atuais incluem os casos críticos de Oxford 145 cm, margens que tornam 145 cm inválidos, bloqueio por 1 pixel acima do limite, modo vinculado, faixa técnica 1/1 para trabalhos sem divisão, reconstrução em pixels e continuidade das emendas após Z.
+Os testes atuais incluem os casos críticos de Oxford 145 cm, margens que tornam 145 cm inválidos, bloqueio por 1 pixel acima do limite, modo vinculado, faixa técnica 1/1 para trabalhos sem divisão, reconstrução em pixels, continuidade das emendas após Z, distribuição padrão 145 + 135 para 280 cm e distribuição equilibrada 140 + 140 apenas quando explicitamente habilitada.
