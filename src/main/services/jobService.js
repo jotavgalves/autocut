@@ -1,9 +1,11 @@
 import sharp from "sharp";
-import { cmToCeilPx, cmToPx } from "../../shared/units.js";
+import { cmToPx } from "../../shared/units.js";
+import { marginsForOrientation } from "../../shared/marginPolicy.js";
 
 export function assertJob(job) {
   if (!job?.source?.filePath || !job?.outputDirectory) throw new Error("Origem e pasta de saída são obrigatórias.");
   if (!Array.isArray(job.slices) || !job.slices.length) throw new Error("O plano não possui faixas válidas para processamento.");
+  if (!["horizontal", "vertical"].includes(job.orientation)) throw new Error("Orientação de produção inválida.");
 }
 
 export async function validateRasterSource(job) {
@@ -37,18 +39,8 @@ export function selectedSlices(job) {
   return selected;
 }
 
-export function marginPixels(margin, dpi) {
-  const size = Math.max(0, Number(margin?.sizeCm) || 0);
-  return {
-    top: margin?.top ? cmToCeilPx(size, dpi) : 0,
-    right: margin?.right ? cmToCeilPx(size, dpi) : 0,
-    bottom: margin?.bottom ? cmToCeilPx(size, dpi) : 0,
-    left: margin?.left ? cmToCeilPx(size, dpi) : 0,
-    topPx: margin?.top ? cmToCeilPx(size, dpi) : 0,
-    rightPx: margin?.right ? cmToCeilPx(size, dpi) : 0,
-    bottomPx: margin?.bottom ? cmToCeilPx(size, dpi) : 0,
-    leftPx: margin?.left ? cmToCeilPx(size, dpi) : 0
-  };
+export function marginPixels(margin, dpi, orientation) {
+  return marginsForOrientation(margin, orientation, dpi);
 }
 
 export function fabricLimitPx(job, dpi) {
