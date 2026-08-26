@@ -14,6 +14,7 @@ export function planCutJob({
   baseName = "ARTE",
   namingTemplate = DEFAULT_NAME_TEMPLATE,
   minimumLastSliceCm = 10,
+  balanceCuts = false,
   outputFormat = "PNG",
   pedido = ""
 }) {
@@ -34,6 +35,7 @@ export function planCutJob({
       rotatedForPrint: noCut.rotatedForPrint,
       maxPrintableWidthPx,
       margins: marginPx,
+      balanceCuts,
       slices: [slice],
       validation: { approved: true, errors: [], reconstruction: { ok: true, tolerancePx: 0 }, checks: ["A dimensão final preparada cabe no limite físico do tecido."] }
     };
@@ -41,10 +43,10 @@ export function planCutJob({
 
   const candidates = [];
   if (orientation === "auto" || orientation === "horizontal") {
-    candidates.push(buildCandidate({ orientation: "horizontal", axisPx: document.heightPx, crossAxisPx: document.widthPx, dpi, fabric, maxPrintableWidthPx, margin, baseName, namingTemplate, minimumLastSliceCm, outputFormat, pedido }));
+    candidates.push(buildCandidate({ orientation: "horizontal", axisPx: document.heightPx, crossAxisPx: document.widthPx, dpi, fabric, maxPrintableWidthPx, margin, baseName, namingTemplate, minimumLastSliceCm, balanceCuts, outputFormat, pedido }));
   }
   if (orientation === "auto" || orientation === "vertical") {
-    candidates.push(buildCandidate({ orientation: "vertical", axisPx: document.widthPx, crossAxisPx: document.heightPx, dpi, fabric, maxPrintableWidthPx, margin, baseName, namingTemplate, minimumLastSliceCm, outputFormat, pedido }));
+    candidates.push(buildCandidate({ orientation: "vertical", axisPx: document.widthPx, crossAxisPx: document.heightPx, dpi, fabric, maxPrintableWidthPx, margin, baseName, namingTemplate, minimumLastSliceCm, balanceCuts, outputFormat, pedido }));
   }
 
   const validCandidates = candidates.filter((candidate) => candidate.validation.approved);
@@ -55,6 +57,7 @@ export function planCutJob({
     document,
     fabric,
     maxPrintableWidthPx,
+    balanceCuts,
     ...selected
   };
 }
@@ -114,8 +117,11 @@ function buildCandidate(options) {
   const margins = marginsForOrientation(options.margin, options.orientation, options.dpi);
   const usefulLimitPx = options.maxPrintableWidthPx - margins.axisTotalPx;
   if (usefulLimitPx <= 0) return invalidCandidate(options.orientation, margins, "Margens maiores que a largura imprimível do tecido.");
+
   const sliceCount = Math.ceil(options.axisPx / usefulLimitPx);
-  const boundaries = balancedBoundaries(options.axisPx, sliceCount);
+  const boundaries = options.balanceCuts
+    ? balancedBoundaries(options.axisPx, sliceCount)
+    : maximumFillBoundaries(options.axisPx, usefulLimitPx);
   const slices = buildSlices({ ...options, boundaries, margins, sliceCount });
   const reconstruction = validateReconstruction(slices, options.axisPx);
   const errors = [];
@@ -127,6 +133,7 @@ function buildCandidate(options) {
     orientation: options.orientation,
     usefulLimitPx,
     usefulLimitCm: pxToCm(usefulLimitPx, options.dpi),
+    distributionMode: options.balanceCuts ? "balanced" : "maximum-fill",
     margins,
     slices,
     score: { sliceCount, lastBelowDesiredMinimum: sliceCount > 1 && lastUsefulPx < minimumLastSlicePx ? 1 : 0, smallestUsefulPx: Math.min(...slices.map((slice) => slice.usefulPx)), wastePx: (sliceCount * usefulLimitPx) - options.axisPx },
@@ -173,6 +180,16 @@ function chooseBestCandidate(candidates) {
     if (a.score.wastePx !== b.score.wastePx) return a.score.wastePx - b.score.wastePx;
     return b.score.smallestUsefulPx - a.score.smallestUsefulPx;
   })[0];
+}
+
+function maximumFillBoundaries(totalPx, usefulLimitPx) {
+  const boundaries = [0];
+  let cursor = 0;
+  while (cursor < totalPx) {
+    cursor = Math.min(totalPx, cursor + usefulLimitPx);
+    boundaries.push(cursor);
+  }
+  return boundaries;
 }
 
 function balancedBoundaries(totalPx, sliceCount) {
