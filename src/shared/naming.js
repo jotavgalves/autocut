@@ -8,17 +8,10 @@ export function baseNameFromPath(filePath) {
 }
 
 export function sanitizeFileName(value) {
-  return String(value)
-    .replace(INVALID_FILE_CHARS, "_")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toUpperCase();
+  return String(value).replace(INVALID_FILE_CHARS, "_").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
 }
 
 export function renderNameTemplate(template, variables) {
-  const rendered = template.replace(/\{([A-Z_]+)\}/g, (_, key) => {
-    return variables[key] == null ? "" : String(variables[key]);
-  });
+  const rendered = String(template || DEFAULT_NAME_TEMPLATE).replace(/\{([A-Z_]+)\}/g, (_, key) => variables[key] == null ? "" : String(variables[key]));
   return sanitizeFileName(rendered);
 }

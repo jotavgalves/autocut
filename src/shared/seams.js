@@ -1,5 +1,5 @@
 export function numberToLetters(value) {
-  if (!Number.isInteger(value) || value < 1) throw new Error("Indice de emenda invalido.");
+  if (!Number.isInteger(value) || value < 1) throw new Error("Índice de emenda inválido.");
   let n = value;
   let out = "";
   while (n > 0) {
@@ -19,10 +19,5 @@ export function labelsForSlice(sliceIndex, totalSlices, orientation) {
   const labels = { before: null, after: null };
   if (sliceIndex > 1) labels.before = seamPair(sliceIndex - 1);
   if (sliceIndex < totalSlices) labels.after = seamPair(sliceIndex);
-  return {
-    sliceIndex,
-    totalSlices,
-    orientation,
-    labels
-  };
+  return { sliceIndex, totalSlices, orientation, labels };
 }
