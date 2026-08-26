@@ -1,0 +1,28 @@
+name: Upgrade AUTOCUT renderer
+on:
+  push:
+    branches: [fix/autocut-production-core]
+    paths: [scripts/upgrade-renderer.mjs]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/autocut-production-core
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/upgrade-renderer.mjs
+      - run: node --check src/renderer/app.js
+      - name: Commit renderer migration
+        run: |
+          rm scripts/upgrade-renderer.mjs .github/workflows/upgrade-renderer.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Enable PDF and Photoshop production adapters in UI"
+          git push origin HEAD:fix/autocut-production-core

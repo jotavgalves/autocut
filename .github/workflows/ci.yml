@@ -1,33 +1,24 @@
 name: AUTOCUT CI
-
 on:
   push:
-    branches:
-      - main
-      - fix/autocut-production-core
+    branches: [main, fix/autocut-production-core]
   pull_request:
-    branches:
-      - main
-
+    branches: [main]
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Check main syntax
-        run: node --check src/main/index.js
-      - name: Check renderer syntax
-        run: node --check src/renderer/app.js
-      - name: Run unit tests
+      - name: Check JavaScript syntax
+        run: find src/main src/shared src/renderer -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Run unit and adapter tests
         run: npm test
       - name: Build renderer
         run: npm run build
