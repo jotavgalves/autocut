@@ -4,8 +4,137 @@ import sharp from "sharp";
 import { PDFDocument } from "pdf-lib";
 import { baseNameFromPath } from "../../shared/naming.js";
 import { inspectPhotoshopArtwork } from "./photoshopInspectService.js";
-export const PDF_COORDINATE_DPI=7200;
-export async function inspectArtwork(filePath,pageNumber=1){const ext=path.extname(filePath).toLowerCase();if(ext===".pdf")return inspectPdf(filePath,pageNumber);if(ext===".psd"||ext===".psb")return inspectPhotoshopArtwork(filePath);return inspectRaster(filePath);}
-async function inspectRaster(filePath){try{const stat=await fs.stat(filePath),baseName=baseNameFromPath(filePath);if(stat.size===0)return{ok:false,filePath,baseName,sizeBytes:0,error:"O arquivo possui 0 bytes."};const image=sharp(filePath,{limitInputPixels:false,failOn:"error"}),metadata=await image.metadata();if(!metadata.width||!metadata.height)throw new Error("Dimensões da imagem não puderam ser determinadas.");const dpi=metadata.density&&metadata.density>0?metadata.density:null,previewBuffer=await sharp(filePath,{limitInputPixels:false}).resize({width:1800,height:1200,fit:"inside",withoutEnlargement:true}).png().toBuffer();return{ok:true,engine:"raster",filePath,baseName,sizeBytes:stat.size,widthPx:metadata.width,heightPx:metadata.height,dpi,dpiDetected:Boolean(dpi),dpiSynthetic:false,widthCm:dpi?metadata.width/dpi*2.54:null,heightCm:dpi?metadata.height/dpi*2.54:null,format:metadata.format,hasAlpha:Boolean(metadata.hasAlpha),space:metadata.space||"unknown",depth:metadata.depth||"unknown",channels:metadata.channels,previewDataUrl:`data:image/png;base64,${previewBuffer.toString("base64")}`};}catch(error){return{ok:false,filePath,baseName:baseNameFromPath(filePath),error:`Falha ao decodificar a arte: ${error.message}`};}}
-async function inspectPdf(filePath,requestedPage){try{const stat=await fs.stat(filePath),bytes=await fs.readFile(filePath),doc=await PDFDocument.load(bytes,{updateMetadata:false}),pageCount=doc.getPageCount();if(!pageCount)throw new Error("O PDF não possui páginas.");const pageNumber=Math.max(1,Math.min(pageCount,Math.round(Number(requestedPage)||1))),page=doc.getPage(pageNumber-1),{width:widthPt,height:heightPt}=page.getSize(),widthPx=Math.round(widthPt/72*PDF_COORDINATE_DPI),heightPx=Math.round(heightPt/72*PDF_COORDINATE_DPI),previewBuffer=await renderPdfPreview(bytes,pageNumber);return{ok:true,engine:"pdf",filePath,baseName:baseNameFromPath(filePath),sizeBytes:stat.size,format:"pdf",pageCount,pageNumber,pageWidthPt:widthPt,pageHeightPt:heightPt,widthPx,heightPx,dpi:PDF_COORDINATE_DPI,dpiDetected:true,dpiSynthetic:true,dpiLabel:"VETOR",widthCm:widthPt/72*2.54,heightCm:heightPt/72*2.54,hasAlpha:false,space:"PDF",depth:"vector",channels:null,previewDataUrl:`data:image/png;base64,${previewBuffer.toString("base64")}`};}catch(error){return{ok:false,filePath,baseName:baseNameFromPath(filePath),error:`Falha ao abrir o PDF: ${error.message}`};}}
-export async function renderPdfPreview(bytesOrPath,pageNumber=1,maxWidth=1800,maxHeight=1200){const bytes=Buffer.isBuffer(bytesOrPath)||bytesOrPath instanceof Uint8Array?bytesOrPath:await fs.readFile(bytesOrPath),canvasApi=await import("@napi-rs/canvas"),{createCanvas,DOMMatrix,ImageData,Path2D}=canvasApi;if(!globalThis.DOMMatrix)globalThis.DOMMatrix=DOMMatrix;if(!globalThis.ImageData)globalThis.ImageData=ImageData;if(!globalThis.Path2D)globalThis.Path2D=Path2D;const pdfjs=await import("pdfjs-dist/legacy/build/pdf.mjs"),task=pdfjs.getDocument({data:new Uint8Array(bytes),disableWorker:true,useSystemFonts:true}),pdf=await task.promise;try{const page=await pdf.getPage(pageNumber),baseViewport=page.getViewport({scale:1}),scale=Math.min(maxWidth/baseViewport.width,maxHeight/baseViewport.height,3),viewport=page.getViewport({scale:Math.max(.1,scale)}),canvas=createCanvas(Math.max(1,Math.ceil(viewport.width)),Math.max(1,Math.ceil(viewport.height))),context=canvas.getContext("2d");context.fillStyle="#ffffff";context.fillRect(0,0,canvas.width,canvas.height);await page.render({canvasContext:context,viewport,canvas}).promise;return canvas.toBuffer("image/png");}finally{await pdf.destroy();}}
+
+export const PDF_COORDINATE_DPI = 7200;
+
+export async function inspectArtwork(filePath, pageNumber = 1) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".pdf") return inspectPdf(filePath, pageNumber);
+  if (ext === ".psd" || ext === ".psb") return inspectPhotoshopArtwork(filePath);
+  return inspectRaster(filePath);
+}
+
+async function inspectRaster(filePath) {
+  try {
+    const stat = await fs.stat(filePath);
+    const baseName = baseNameFromPath(filePath);
+    if (stat.size === 0) return { ok: false, filePath, baseName, sizeBytes: 0, error: "O arquivo possui 0 bytes." };
+
+    const image = sharp(filePath, { limitInputPixels: false, failOn: "error" });
+    const metadata = await image.metadata();
+    if (!metadata.width || !metadata.height) throw new Error("Dimensões da imagem não puderam ser determinadas.");
+
+    const dpi = metadata.density && metadata.density > 0 ? metadata.density : null;
+    const previewBuffer = await sharp(filePath, { limitInputPixels: false })
+      .resize({ width: 1800, height: 1200, fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer();
+
+    return {
+      ok: true,
+      engine: "raster",
+      filePath,
+      baseName,
+      sizeBytes: stat.size,
+      widthPx: metadata.width,
+      heightPx: metadata.height,
+      dpi,
+      dpiDetected: Boolean(dpi),
+      dpiSynthetic: false,
+      widthCm: dpi ? metadata.width / dpi * 2.54 : null,
+      heightCm: dpi ? metadata.height / dpi * 2.54 : null,
+      format: metadata.format,
+      hasAlpha: Boolean(metadata.hasAlpha),
+      space: metadata.space || "unknown",
+      depth: metadata.depth || "unknown",
+      channels: metadata.channels,
+      previewDataUrl: `data:image/png;base64,${previewBuffer.toString("base64")}`
+    };
+  } catch (error) {
+    return { ok: false, filePath, baseName: baseNameFromPath(filePath), error: `Falha ao decodificar a arte: ${error.message}` };
+  }
+}
+
+async function inspectPdf(filePath, requestedPage) {
+  try {
+    const stat = await fs.stat(filePath);
+    const bytes = await fs.readFile(filePath);
+    const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+    const pageCount = doc.getPageCount();
+    if (!pageCount) throw new Error("O PDF não possui páginas.");
+
+    const pageNumber = Math.max(1, Math.min(pageCount, Math.round(Number(requestedPage) || 1)));
+    const page = doc.getPage(pageNumber - 1);
+    const { width: widthPt, height: heightPt } = page.getSize();
+    const widthPx = Math.round(widthPt / 72 * PDF_COORDINATE_DPI);
+    const heightPx = Math.round(heightPt / 72 * PDF_COORDINATE_DPI);
+    const previewBuffer = await renderPdfPreview(bytes, pageNumber);
+
+    return {
+      ok: true,
+      engine: "pdf",
+      filePath,
+      baseName: baseNameFromPath(filePath),
+      sizeBytes: stat.size,
+      format: "pdf",
+      pageCount,
+      pageNumber,
+      pageWidthPt: widthPt,
+      pageHeightPt: heightPt,
+      widthPx,
+      heightPx,
+      dpi: PDF_COORDINATE_DPI,
+      dpiDetected: true,
+      dpiSynthetic: true,
+      dpiLabel: "VETOR",
+      widthCm: widthPt / 72 * 2.54,
+      heightCm: heightPt / 72 * 2.54,
+      hasAlpha: false,
+      space: "PDF",
+      depth: "vector",
+      channels: null,
+      previewDataUrl: `data:image/png;base64,${previewBuffer.toString("base64")}`
+    };
+  } catch (error) {
+    return { ok: false, filePath, baseName: baseNameFromPath(filePath), error: `Falha ao abrir o PDF: ${error.message}` };
+  }
+}
+
+export async function renderPdfPreview(bytesOrPath, pageNumber = 1, maxWidth = 1800, maxHeight = 1200) {
+  const bytes = Buffer.isBuffer(bytesOrPath) || bytesOrPath instanceof Uint8Array
+    ? bytesOrPath
+    : await fs.readFile(bytesOrPath);
+
+  // PDF.js 6 em Node usa @napi-rs/canvas internamente. O canvasFactory do
+  // próprio PDFDocumentProxy é o caminho suportado pelo exemplo oficial e
+  // evita misturar um canvas criado externamente com o backend do PDF.js.
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(bytes),
+    disableWorker: true,
+    useSystemFonts: true
+  });
+  const pdf = await loadingTask.promise;
+
+  try {
+    const page = await pdf.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.max(0.1, Math.min(maxWidth / baseViewport.width, maxHeight / baseViewport.height, 3));
+    const viewport = page.getViewport({ scale });
+    const canvasFactory = pdf.canvasFactory;
+    if (!canvasFactory?.create) throw new Error("PDF.js não forneceu o canvasFactory de Node.");
+
+    const canvasAndContext = canvasFactory.create(Math.max(1, Math.ceil(viewport.width)), Math.max(1, Math.ceil(viewport.height)));
+    const { canvas, context } = canvasAndContext;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    const output = canvas.toBuffer("image/png");
+    page.cleanup();
+    canvasFactory.destroy(canvasAndContext);
+    return output;
+  } finally {
+    await pdf.destroy();
+  }
+}
