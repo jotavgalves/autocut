@@ -26,14 +26,18 @@ Esta versão substitui o protótipo inicial e corrige os problemas críticos de 
 - Template de nomenclatura com prévia em tempo real.
 - Projetos `.autocut.json` com parâmetros e posições de corte.
 - Exportação raster para PNG, JPEG e TIFF.
-- Política de conflito: versionar, substituir ou ignorar.
+- JPEG com qualidade configurável.
+- TIFF com compressão LZW, Deflate ou sem compressão.
+- Política de conflito: **perguntar**, versionar, substituir ou ignorar.
+- No modo `Perguntar`, cada conflito oferece `Substituir`, `Criar versão` ou `Ignorar` antes de gravar o arquivo.
+- Configurações persistentes com funções para **exportar**, **importar** e **restaurar padrão**.
 - Reabertura dos arquivos exportados para validação independente de dimensões, DPI, limite, espaço de cor, ICC, profundidade e alpha quando aplicável.
 - Validação matemática de reconstrução sem lacuna ou sobreposição.
 - Trabalho que não precisa de divisão representado por uma faixa técnica 1/1, permitindo preparar e validar uma cópia sem corte.
 - **Modo de reimpressão**: gera somente a faixa escolhida a partir do original usando exatamente as posições, margens, emendas e nomenclatura do plano atual.
 - **Mapa de costura em JPEG** com miniatura real da arte, linhas de corte, ordem das faixas, dimensões e pares de emenda.
 - Estado de reimpressão e regra de distribuição salvos no projeto AUTOCUT.
-- Testes automatizados do núcleo geométrico.
+- Testes automatizados do núcleo geométrico e CI para testes/build.
 
 ### Regra de distribuição automática
 
