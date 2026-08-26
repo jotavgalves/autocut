@@ -1,14 +1,13 @@
 {
   "name": "autocut-electron",
-  "version": "0.1.0",
-  "description": "AUTOCUT - preparacao automatica de artes para sublimacao",
+  "version": "0.2.0",
+  "description": "AUTOCUT - preparação dimensional segura de artes para sublimação",
   "type": "module",
   "main": "src/main/index.js",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && set AUTOCUT_DEV_SERVER_URL=http://127.0.0.1:5173&& electron .\"",
     "start": "electron .",
     "test": "node --test tests/*.test.js",
-    "validate:desktop": "node tests/validate-desktop-image.js",
     "build": "vite build"
   },
   "dependencies": {
