@@ -27,6 +27,10 @@ Esta versão substitui o protótipo inicial e corrige os problemas críticos de 
 - Política de conflito: versionar, substituir ou ignorar.
 - Reabertura dos arquivos exportados para validação independente de dimensões, DPI, limite, espaço de cor, ICC, profundidade e alpha quando aplicável.
 - Validação matemática de reconstrução sem lacuna ou sobreposição.
+- Trabalho que não precisa de divisão representado por uma faixa técnica 1/1, permitindo preparar e validar uma cópia sem corte.
+- **Modo de reimpressão**: gera somente a faixa escolhida a partir do original usando exatamente as posições, margens, emendas e nomenclatura do plano atual.
+- **Mapa de costura em JPEG** com miniatura real da arte, linhas de corte, ordem das faixas, dimensões e pares de emenda.
+- Estado de reimpressão salvo no projeto AUTOCUT.
 - Testes automatizados do núcleo geométrico.
 
 ### Ainda exige engine específico
@@ -36,8 +40,6 @@ Os itens abaixo não são marcados como prontos nesta versão porque precisam de
 - PSD/PSB com camadas e texto editável;
 - PDF vetorial e PDF multipágina;
 - preservação vetorial de texto nesses formatos;
-- mapa de costura final em formato de produção;
-- fluxo dedicado de reimpressão de uma única faixa;
 - importação direta de PSD/PSB e seleção de páginas PDF.
 
 A interface deixa PSD, PSB e PDF explicitamente indisponíveis em vez de converter silenciosamente para raster.
@@ -53,6 +55,8 @@ pixels úteis + margens aplicáveis <= limite do tecido em pixels
 ```
 
 A soma das áreas úteis no eixo de corte deve reconstruir exatamente o tamanho original em pixels.
+
+No modo de reimpressão, somente a faixa solicitada é gravada, mas a validação confirma primeiro que ela pertence a um plano completo cuja reconstrução continua válida.
 
 ## Instalação
 
@@ -71,4 +75,4 @@ npm run dev
 
 ## Testes cobertos
 
-Os testes atuais incluem os casos críticos de Oxford 145 cm, margens que tornam 145 cm inválidos, bloqueio por 1 pixel acima do limite, modo vinculado, reconstrução em pixels e continuidade das emendas após Z.
+Os testes atuais incluem os casos críticos de Oxford 145 cm, margens que tornam 145 cm inválidos, bloqueio por 1 pixel acima do limite, modo vinculado, faixa técnica 1/1 para trabalhos sem divisão, reconstrução em pixels e continuidade das emendas após Z.
