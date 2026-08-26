@@ -15,6 +15,23 @@ test("145 x 500 sem margem não corta", () => assert.equal(plan({ widthCm: 145, 
 test("sem corte ainda produz uma faixa técnica 1/1 exportável", () => { const result = plan({ widthCm: 500, heightCm: 145 }); assert.equal(result.slices.length, 1); assert.equal(result.slices[0].index, 1); assert.equal(result.slices[0].total, 1); assert.equal(result.slices[0].startPx, 0); assert.equal(result.slices[0].endPx, result.document.heightPx); assert.equal(result.validation.reconstruction.ok, true); });
 test("146 x 500 exige corte", () => { const result = plan({ widthCm: 146, heightCm: 500 }); assert.equal(result.status, "CUT_REQUIRED"); assert.ok(result.slices.length > 1); });
 test("500 x 145 com margens de 1cm não é aprovado como sem corte", () => { const result = plan({ widthCm: 500, heightCm: 145, margin: oneCmAll }); assert.equal(result.status, "CUT_REQUIRED"); assert.ok(result.slices.every((slice) => slice.finalLimitedAxisCm <= 145)); });
+
+test("por padrão o corte automático usa o máximo imprimível antes do restante", () => {
+  const dpi = 300;
+  const result = plan({ widthCm: 300, heightCm: 280, orientation: "horizontal", balanceCuts: false });
+  assert.equal(result.slices.length, 2);
+  assert.equal(result.distributionMode, "maximum-fill");
+  assert.equal(result.slices[0].usefulPx, cmToPx(145, dpi));
+  assert.equal(result.slices[1].usefulPx, cmToPx(280, dpi) - cmToPx(145, dpi));
+});
+
+test("divisão equilibrada só acontece quando a opção é marcada", () => {
+  const result = plan({ widthCm: 300, heightCm: 280, orientation: "horizontal", balanceCuts: true });
+  assert.equal(result.slices.length, 2);
+  assert.equal(result.distributionMode, "balanced");
+  assert.ok(Math.abs(result.slices[0].usefulPx - result.slices[1].usefulPx) <= 1);
+});
+
 test("300 x 290 sem margem usa duas faixas horizontais", () => { const result = plan({ widthCm: 300, heightCm: 290 }); assert.equal(result.orientation, "horizontal"); assert.equal(result.slices.length, 2); assert.equal(result.validation.reconstruction.ok, true); });
 test("300 x 290 com 1cm em todos os lados recalcula para três faixas", () => { const result = plan({ widthCm: 300, heightCm: 290, margin: oneCmAll }); assert.equal(result.slices.length, 3); const limitPx = cmToPx(145, 300); assert.ok(result.slices.every((slice) => slice.finalLimitedAxisPx <= limitPx)); });
 test("fonte de verdade em pixels é preservada", () => { const result = planCutJob({ widthPx: 123457, heightPx: 65431, dpi: 300, fabric: oxford, margin: noMargin, orientation: "horizontal" }); assert.equal(result.document.widthPx, 123457); assert.equal(result.document.heightPx, 65431); assert.equal(result.validation.reconstruction.ok, true); });
