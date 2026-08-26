@@ -17,6 +17,10 @@ async function enhanceAutocutUx() {
   simplifyCopy(sections);
   organizeAdvancedControls(sections);
 
+  const optionalNaming = sections["06"]?.parentElement?.classList.contains("ux-section-details")
+    ? sections["06"].parentElement
+    : sections["06"];
+
   const wizard = document.createElement("div");
   wizard.className = "ux-wizard";
 
@@ -33,7 +37,7 @@ async function enhanceAutocutUx() {
     { id: 1, title: "Arte", subtitle: "Arquivo e tecido", sections: [sections["01"], sections["02"]] },
     { id: 2, title: "Corte", subtitle: "Como dividir", sections: [sections["03"]] },
     { id: 3, title: "Acabamento", subtitle: "Margem e A1/A2", sections: [sections["04"], sections["05"]] },
-    { id: 4, title: "Saída", subtitle: "Nome e exportação", sections: [sections["06"], sections["07"]] }
+    { id: 4, title: "Saída", subtitle: "Nome e exportação", sections: [optionalNaming, sections["07"]] }
   ];
 
   const stepPanels = [];
@@ -150,7 +154,7 @@ async function enhanceAutocutUx() {
       hint.textContent = "Margem e identificação usam os padrões seguros. Altere somente se necessário.";
     } else {
       next.disabled = !exportReady;
-      next.textContent = exportReady ? "Gerar e validar" : "Gerar e validar";
+      next.textContent = "Gerar e validar";
       hint.textContent = !hasOutput
         ? "Escolha a pasta de saída."
         : exportReady
@@ -418,7 +422,7 @@ function setLabel(id, text) {
 function replaceLabelText(label, text) {
   for (const node of [...label.childNodes]) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-      node.textContent = `${text}`;
+      node.textContent = text;
       return;
     }
   }
