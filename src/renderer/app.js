@@ -65,8 +65,9 @@ app.innerHTML = `
     <section>
       <h2><i>07</i> Exportação</h2>
       <button id="chooseOutput" class="full">Escolher pasta</button><div id="outputPath" class="meta">Nenhuma pasta selecionada.</div>
-      <div class="cols"><label>Formato<select id="format"><option>PNG</option><option>JPEG</option><option>TIFF</option><option disabled>PSD — engine pendente</option><option disabled>PSB — engine pendente</option><option disabled>PDF — engine pendente</option></select></label><label>Conflito<select id="conflict"><option value="version">Adicionar versão</option><option value="overwrite">Substituir</option><option value="skip">Ignorar</option></select></label></div>
+      <div class="cols"><label>Formato<select id="format"><option>PNG</option><option>JPEG</option><option>TIFF</option><option disabled>PSD — engine pendente</option><option disabled>PSB — engine pendente</option><option disabled>PDF — engine pendente</option></select></label><label>Conflito<select id="conflict"><option value="ask">Perguntar</option><option value="version">Adicionar versão</option><option value="overwrite">Substituir</option><option value="skip">Ignorar</option></select></label></div>
       <label id="qualityRow">Qualidade JPEG<input id="quality" type="range" min="1" max="100"><span id="qualityValue"></span></label>
+      <label id="tiffCompressionRow">Compressão TIFF<select id="tiffCompression"><option value="lzw">LZW</option><option value="deflate">Deflate</option><option value="none">Sem compressão</option></select></label>
       <small>Reimpressão</small>
       <label class="inline"><input id="reprintEnabled" type="checkbox">Gerar somente uma faixa</label>
       <label>Faixa a reimprimir<input id="reprintIndex" type="number" min="1" step="1"></label>
@@ -75,6 +76,7 @@ app.innerHTML = `
       <div id="mapStatus" class="meta">Mapa ainda não gerado.</div>
     </section>
     <section><h2><i>08</i> Validação</h2><div id="report" class="report"><span class="muted">Aguardando arte.</span></div></section>
+    <section><h2><i>09</i> Configurações</h2><div class="buttons"><button id="exportSettings">Exportar</button><button id="importSettings">Importar</button><button id="resetSettings" class="danger">Padrão</button></div><input id="settingsFile" type="file" accept="application/json,.json" hidden><p>Exporta/importa tecidos, margens, corte, nomenclatura e opções de saída.</p></section>
   </aside>
 </main>`;
 
@@ -85,8 +87,9 @@ const ids = [
   "marginSize", "marginColor", "mTop", "mRight", "mBottom", "mLeft", "mTransparent",
   "identEnabled", "identFont", "identSize", "identColor", "identEdge", "nTop", "nRight", "nBottom", "nLeft",
   "previewInfo", "zoomOut", "zoomLabel", "zoomIn", "fit", "preview", "empty", "template", "names",
-  "chooseOutput", "outputPath", "format", "conflict", "qualityRow", "quality", "qualityValue",
-  "reprintEnabled", "reprintIndex", "export", "generateMap", "mapStatus", "report"
+  "chooseOutput", "outputPath", "format", "conflict", "qualityRow", "quality", "qualityValue", "tiffCompressionRow", "tiffCompression",
+  "reprintEnabled", "reprintIndex", "export", "generateMap", "mapStatus", "report",
+  "exportSettings", "importSettings", "resetSettings", "settingsFile"
 ];
 const E = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let saveTimer;
@@ -144,6 +147,7 @@ function sync() {
   E.conflict.value = S.output.conflict;
   E.quality.value = S.output.quality;
   E.qualityValue.textContent = S.output.quality;
+  E.tiffCompression.value = S.output.tiffCompression || "lzw";
   E.reprintEnabled.checked = S.reprint.enabled;
   E.reprintIndex.value = S.reprint.index;
   updateFabricEditor();
@@ -160,6 +164,10 @@ function bind() {
   E.newFabric.onclick = newFabric;
   E.saveFabric.onclick = saveFabric;
   E.deleteFabric.onclick = deleteFabric;
+  E.exportSettings.onclick = exportSettingsFile;
+  E.importSettings.onclick = () => E.settingsFile.click();
+  E.resetSettings.onclick = resetSettingsToDefault;
+  E.settingsFile.onchange = importSettingsFile;
 
   E.fabric.onchange = () => {
     S.fabricId = E.fabric.value;
@@ -221,6 +229,7 @@ function bind() {
   E.format.onchange = () => { S.output.format = E.format.value; formatUI(); recalc(false); persist(); };
   E.conflict.onchange = () => { S.output.conflict = E.conflict.value; persist(); };
   E.quality.oninput = () => { S.output.quality = +E.quality.value; E.qualityValue.textContent = E.quality.value; persist(); };
+  E.tiffCompression.onchange = () => { S.output.tiffCompression = E.tiffCompression.value; persist(); };
   E.reprintEnabled.onchange = () => { S.reprint.enabled = E.reprintEnabled.checked; clampReprint(); render(); persist(); };
   E.reprintIndex.oninput = () => { S.reprint.index = Math.max(1, Math.round(+E.reprintIndex.value || 1)); clampReprint(); render(); persist(); };
 
@@ -574,7 +583,7 @@ function preWarnings() {
   if (S.output.format === "JPEG" && S.source?.depth && S.source.depth !== "uchar") w.push(`JPEG reduzirá a profundidade ${S.source.depth} para 8 bits por canal.`);
   if (S.source && !["srgb", "rgb", "b-w"].includes(String(S.source.space).toLowerCase())) w.push(`Espaço ${S.source.space}: a pós-validação exigirá preservação.`);
   const current = S.manual || S.plan;
-  if (!S.balanceCuts && current?.lastSmall) w.push("A última faixa ficou abaixo do tamanho desejável. O AUTOCUT manteve o máximo útil primeiro; marque ‘Distribuir faixas igualmente’ se quiser redistribuir.");
+  if (!S.balanceCuts && current?.lastSmall) w.push("A última faixa ficou abaixo do tamanho desejável. O AUTOCUT manteve o máximo útil primeiro; marque “Distribuir faixas igualmente” se quiser redistribuir.");
   return w;
 }
 
@@ -855,11 +864,14 @@ function fit() {
   draw();
 }
 
-function formatUI() { E.qualityRow.style.display = S.output.format === "JPEG" ? "grid" : "none"; }
+function formatUI() {
+  E.qualityRow.style.display = S.output.format === "JPEG" ? "grid" : "none";
+  E.tiffCompressionRow.style.display = S.output.format === "TIFF" ? "grid" : "none";
+}
 
-function persist() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => window.autocut.setSettings({
+function settingsSnapshot() {
+  return {
+    settingsSchema: 1,
     presets: S.presets,
     fabricId: S.fabricId,
     margin: S.margin,
@@ -874,7 +886,46 @@ function persist() {
     output: S.output,
     pedido: S.pedido,
     reprint: S.reprint
-  }), 250);
+  };
+}
+
+function exportSettingsFile() {
+  const blob = new Blob([JSON.stringify(settingsSnapshot(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `AUTOCUT_CONFIG_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function importSettingsFile() {
+  const file = E.settingsFile.files?.[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Arquivo de configuração inválido.");
+    loadSettings(data);
+    refreshFabric();
+    sync();
+    recalc(true);
+    await window.autocut.setSettings(settingsSnapshot());
+  } catch (error) {
+    alert(`Falha ao importar configurações: ${error.message}`);
+  } finally {
+    E.settingsFile.value = "";
+  }
+}
+
+async function resetSettingsToDefault() {
+  if (!confirm("Restaurar todas as configurações padrão do AUTOCUT?")) return;
+  await window.autocut.setSettings({});
+  location.reload();
+}
+
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => window.autocut.setSettings(settingsSnapshot()), 250);
 }
 
 function ext(f) { return f === "JPEG" ? "JPG" : f === "TIFF" ? "TIF" : f; }
